@@ -1,0 +1,10 @@
+numpy
+pytorch
+torchvision
+matplotlib
+mayavi
+vtk
+scikit-learn
+dash
+dash-bootstrap-components
+plotly
