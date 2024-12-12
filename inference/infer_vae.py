@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from models.vae import VoxelVAE
 
-def generate_voxel(model_path, output_path):
+def infer(model_path, output_path):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = VoxelVAE().to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
@@ -15,4 +15,4 @@ def generate_voxel(model_path, output_path):
     print(f"Generated voxel saved to {output_path}")
 
 if __name__ == '__main__':
-    generate_voxel('models/vae_epoch_50.pth', 'outputs/generated_voxel_vae.npy')
+    infer('models/vae_epoch_50.pth', 'outputs/generated_voxel_vae.npy')

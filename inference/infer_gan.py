@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from models.gan import Generator
 
-def generate_voxel(generator_path, output_path):
+def infer(generator_path, output_path):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     generator = Generator().to(device)
     generator.load_state_dict(torch.load(generator_path, map_location=device))
@@ -15,4 +15,4 @@ def generate_voxel(generator_path, output_path):
     print(f"Generated voxel saved to {output_path}")
 
 if __name__ == '__main__':
-    generate_voxel('models/gan_generator_epoch_50.pth', 'outputs/generated_voxel_gan.npy')
+    infer('models/gan_generator_epoch_50.pth', 'outputs/generated_voxel_gan.npy')
