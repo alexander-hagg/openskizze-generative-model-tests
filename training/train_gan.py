@@ -30,7 +30,7 @@ def train(progress_callback=None):
         optimizer_G = optim.Adam(generator.parameters(), lr=0.0002)
         optimizer_D = optim.Adam(discriminator.parameters(), lr=0.0002)
 
-        total_epochs = 50
+        total_epochs = 5
         for epoch in range(total_epochs):
             d_loss_epoch = 0.0
             g_loss_epoch = 0.0
