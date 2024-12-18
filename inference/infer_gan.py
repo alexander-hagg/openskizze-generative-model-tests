@@ -3,7 +3,7 @@ import numpy as np
 from models.gan import Generator
 import sys
 
-def infer(progress_callback=None, model_path=None, output_path=None, num_samples=10):
+def infer(progress_callback=None, model_path=None, output_path=None, num_samples=10, latent_dim=10):
     # Debug: Check the type of generator_path
     generator_path = model_path + 'gan_generator_final.pth'
     if not isinstance(generator_path, str):
@@ -15,7 +15,7 @@ def infer(progress_callback=None, model_path=None, output_path=None, num_samples
         sys.exit(1)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    generator = Generator().to(device)
+    generator = Generator(latent_dim=latent_dim, output_size=30, initial_size=4, base_channels=128).to(device)
     
     try:
         # Load the state_dict with weights_only=True to suppress the FutureWarning
@@ -39,7 +39,7 @@ def infer(progress_callback=None, model_path=None, output_path=None, num_samples
     generator.eval()
     
     with torch.no_grad():
-        z = torch.randn(num_samples, 100).to(device)
+        z = torch.randn(num_samples, 10).to(device)
         generated_voxel = generator(z)
         print(generated_voxel.shape)
     

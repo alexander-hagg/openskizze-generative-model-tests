@@ -2,24 +2,6 @@ import torch
 import torch.nn as nn
 import math
 
-def calculate_downsampling_steps(initial_size, target_size):
-    """
-    Calculates the number of downsampling steps required to reach or below the target size.
-    
-    Args:
-        initial_size (int): The starting spatial size (e.g., 30 for 30x30).
-        target_size (int): The desired minimum spatial size (e.g., 4 for 4x4).
-    
-    Returns:
-        int: Number of downsampling steps needed.
-    """
-    steps = 0
-    size = initial_size
-    while size > target_size:
-        size = size // 2
-        steps += 1
-    return steps
-
 def calculate_upsampling_steps(initial_size, target_size):
     """
     Calculates the number of upsampling steps required to reach or exceed the target size.
@@ -34,10 +16,9 @@ def calculate_upsampling_steps(initial_size, target_size):
     steps = 0
     size = initial_size
     while size < target_size:
-        size *= 2
+        size = size * 2
         steps += 1
     return steps
-
 
 class Generator(nn.Module):
     def __init__(self, latent_dim=100, output_size=30, initial_size=4, base_channels=128):
@@ -97,7 +78,7 @@ class Generator(nn.Module):
         # Final convolution to get desired output channels
         self.final_layer = nn.Sequential(
             nn.Conv2d(current_channels, 1, kernel_size=3, stride=1, padding=1),
-            nn.Tanh()
+            nn.Tanh()  # Ensures output is in [-1, 1]
         )
         
     def forward(self, z):
@@ -120,10 +101,28 @@ class Generator(nn.Module):
         x = self.final_layer(x)
         return x
 
+def calculate_downsampling_steps(initial_size, target_size):
+    """
+    Calculates the number of downsampling steps required to reach or below the target size.
+    
+    Args:
+        initial_size (int): The starting spatial size (e.g., 30 for 30x30).
+        target_size (int): The desired minimum spatial size (e.g., 4 for 4x4).
+    
+    Returns:
+        int: Number of downsampling steps needed.
+    """
+    steps = 0
+    size = initial_size
+    while size > target_size:
+        size = size // 2
+        steps += 1
+    return steps
+
 class Discriminator(nn.Module):
     def __init__(self, input_size=30, base_channels=64, final_pool_size=(4, 4)):
         """
-        Initializes the Discriminator with a dynamic architecture based on input size.
+        Initializes the Discriminator (Critic) with a dynamic architecture based on input size.
         
         Args:
             input_size (int): Spatial size of the input height map (e.g., 30 for 30x30).
@@ -161,7 +160,7 @@ class Discriminator(nn.Module):
             self.downsampling_blocks.append(
                 nn.Sequential(
                     nn.Conv2d(current_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding),
-                    nn.BatchNorm2d(out_channels),
+                    nn.InstanceNorm2d(out_channels, affine=True),
                     nn.LeakyReLU(0.2, inplace=True)
                 )
             )
@@ -173,25 +172,22 @@ class Discriminator(nn.Module):
         self.adaptive_pool = nn.AdaptiveAvgPool2d(self.final_pool_size)
         
         # Final classification layer
-        self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(current_channels * self.final_pool_size[0] * self.final_pool_size[1], 1),
-            nn.Sigmoid()
-        )
+        self.classifier = nn.Linear(current_channels * self.final_pool_size[0] * self.final_pool_size[1], 1)
         
     def forward(self, x):
         """
-        Forward pass of the Discriminator.
+        Forward pass of the Discriminator (Critic).
         
         Args:
             x (torch.Tensor): Input height maps of shape [batch_size, 1, input_size, input_size].
         
         Returns:
-            torch.Tensor: Scalar probabilities of shape [batch_size, 1].
+            torch.Tensor: Scalar scores of shape [batch_size, 1].
         """
         for block in self.downsampling_blocks:
             x = block(x)
         
         x = self.adaptive_pool(x)
-        x = self.classifier(x)
+        x = x.view(x.size(0), -1)  # Flatten
+        x = self.classifier(x)  # Raw scores, no sigmoid
         return x

@@ -349,7 +349,7 @@ def run_infer(model):
     output_path = "data/results/results.npy"
     model_path = 'models/'
     status_message = f"Generating Designs using {model}"
-    num_samples = 1000
+    num_samples = 10000
     def progress_callback(p):
         update_progress(task_name, p, status_message)
     try:
