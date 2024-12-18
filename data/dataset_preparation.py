@@ -2,17 +2,29 @@ import numpy as np
 import os
 import time
 
-def generate_synthetic_data(progress_callback=None, num_samples=1000, voxel_size=32, save_dir='data/processed/'):
-    """Generates synthetic 2.5D voxel height maps for urban structures."""
+def generate_synthetic_data(progress_callback=None, num_samples=1000, max_width=30, max_height=9, save_dir='data/processed/'):
+    """Generates synthetic 2.5D voxel height maps for urban structures.
+    
+    Each voxel represents a 3x3x3 meter cube.
+    Buildings have a maximum height of max_height meters."""
+    
+    voxel_resolution = 3  # Each voxel is 3x3x3 meters
+    max_voxel_width = max_width // voxel_resolution
+    max_voxel_height = max_height // voxel_resolution
+
     data = []
     for i in range(num_samples):
-        building = np.zeros((voxel_size, voxel_size, voxel_size))
+        building = np.zeros((max_voxel_width, max_voxel_width, max_voxel_height))
         num_buildings = np.random.randint(1, 5)
-        for _ in range(num_buildings):
-            x, y = np.random.randint(0, voxel_size, size=2)
-            width, depth = np.random.randint(4, voxel_size // 4, size=2)
-            height = np.random.randint(1, voxel_size // 2)
-            building[x:x+width, y:y+depth, :height] = 1
+        for j in range(num_buildings):
+            x, y = np.random.randint(0, max_voxel_width, size=2)
+            width = np.random.randint(1, max_voxel_width - x + 1)
+            depth = np.random.randint(1, max_voxel_width - y + 1)
+            height = np.random.randint(1, max_voxel_height + 1)
+            # Ensure that x + width and y + depth do not exceed max_voxel_width
+            x_end = min(x + width, max_voxel_width)
+            y_end = min(y + depth, max_voxel_width)
+            building[x:x_end, y:y_end, :height] = 1
         data.append(building)
         # Update progress
         if progress_callback:

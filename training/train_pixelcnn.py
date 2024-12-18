@@ -3,7 +3,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 import os
 import numpy as np
-from models.autoregressive import VoxelRNN
+from models.pixelcnn import PixelCNN
 
 class VoxelSequenceDataset(Dataset):
     def __init__(self, data_dir):

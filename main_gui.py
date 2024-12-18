@@ -12,12 +12,12 @@ from data.dataset_preparation import generate_synthetic_data
 # Import training functions
 from training.train_gan import train as train_gan
 from training.train_vae import train as train_vae
-from training.train_autoregressive import train as train_autoregressive
+from training.train_pixelcnn import train as train_pixelcnn
 
 # Import inference functions
 from inference.infer_gan import infer as infer_gan
 from inference.infer_vae import infer as infer_vae
-from inference.infer_autoregressive import infer as infer_autoregressive
+from inference.infer_pixelcnn import infer as infer_pixelcnn
 
 # Initialize Dash app with multi-page support
 app = dash.Dash(
@@ -27,7 +27,7 @@ app = dash.Dash(
 )
 
 # Define models
-models = ['3D-GAN', 'Voxel VAE', 'Autoregressive Model']
+models = ['GAN', 'Voxel VAE', 'PixelCNN']
 
 # Shared state for progress tracking
 progress_data = {
@@ -73,11 +73,10 @@ app.layout = html.Div([
     ),
     # Store components to track if visualization has been done
     dcc.Store(id='dataset-visualization-done', data=False),
-    dcc.Store(id='infer-visualization-done', data=False),  # If needed
+    dcc.Store(id='infer-visualization-done', data=False),
 ])
 
 # Define page layouts
-
 # Page 1: Generate Dataset
 generate_dataset_layout = dbc.Container([
     dbc.Row([
@@ -112,7 +111,7 @@ train_models_layout = dbc.Container([
             dcc.Dropdown(
                 id='train-model-select',
                 options=[{'label': model, 'value': model} for model in models],
-                value='3D-GAN'
+                value='GAN'
             )
         ], width=6)
     ]),
@@ -140,7 +139,7 @@ generate_designs_layout = dbc.Container([
             dcc.Dropdown(
                 id='infer-model-select',
                 options=[{'label': model, 'value': model} for model in models],
-                value='3D-GAN'
+                value='GAN'
             )
         ], width=6)
     ]),
@@ -157,7 +156,7 @@ generate_designs_layout = dbc.Container([
     ]),
     dbc.Row([
         dbc.Col([
-            html.Div(id='designs-grid')
+            html.Div(id='dataset-visualization', className='mt-4')  # Div for visualization
         ], width=12)
     ])
 ], fluid=True)
@@ -209,9 +208,11 @@ def create_voxel_mesh(voxel, color='blue', voxel_size=1):
     vertices = []
     faces = []
     i, j, k = voxel.nonzero()
+    if np.sum(i) == 0:
+        return None, 0
     vertex_map = {}
     vertex_count = 0
-
+    
     # Define the 8 vertices of a unit cube
     cube_vertices = [
         [0, 0, 0],
@@ -243,7 +244,6 @@ def create_voxel_mesh(voxel, color='blue', voxel_size=1):
             else:
                 current_indices.append(vertex_map[key])
         
-        # Define faces with correct winding order (counter-clockwise)
         # Each face has two triangles
         # Bottom Face
         faces += [
@@ -252,7 +252,7 @@ def create_voxel_mesh(voxel, color='blue', voxel_size=1):
         ]
         # Top Face
         faces += [
-            current_indices[6], current_indices[5], current_indices[4],
+            current_indices[4], current_indices[5], current_indices[6],
             current_indices[7], current_indices[6], current_indices[4],
         ]
         # Front Face
@@ -262,18 +262,18 @@ def create_voxel_mesh(voxel, color='blue', voxel_size=1):
         ]
         # Back Face
         faces += [
-            current_indices[7], current_indices[3], current_indices[2],
-            current_indices[6], current_indices[7], current_indices[2],
+            current_indices[6], current_indices[2], current_indices[3],
+            current_indices[7], current_indices[6], current_indices[3],
         ]
         # Left Face
         faces += [
-            current_indices[7], current_indices[4], current_indices[0],
-            current_indices[7], current_indices[0], current_indices[3],
+            current_indices[7], current_indices[3], current_indices[0],
+            current_indices[4], current_indices[7], current_indices[0],
         ]
         # Right Face
         faces += [
             current_indices[6], current_indices[2], current_indices[1],
-            current_indices[6], current_indices[1], current_indices[5],
+            current_indices[5], current_indices[6], current_indices[1],
         ]
     
     vertices = np.array(vertices)
@@ -291,7 +291,7 @@ def create_voxel_mesh(voxel, color='blue', voxel_size=1):
         j=faces[1::3],
         k=faces[2::3],
         color=color,
-        opacity=0.9,
+        opacity=1.0,
         flatshading=True,
         showscale=False,
         lighting=dict(
@@ -319,7 +319,7 @@ def run_generate_dataset():
     def progress_callback(p):
         update_progress(task_name, p, status_message)
     try:
-        generate_synthetic_data(progress_callback=progress_callback, num_samples=1000, voxel_size=32, save_dir='data/processed/')
+        generate_synthetic_data(progress_callback=progress_callback, num_samples=1000, max_width=90, max_height=9, save_dir='data/processed/')
         update_progress(task_name, 100, status_message)
     except Exception as e:
         print(f"Error during dataset generation: {e}")
@@ -328,15 +328,17 @@ def run_generate_dataset():
 def run_train(model):
     task_name = "train"
     status_message = f"Training {model}"
+    model_path = 'models/'
+    dataset_path='data/processed/all_samples.npy'
     def progress_callback(p):
         update_progress(task_name, p, status_message)
     try:
-        if model == '3D-GAN':
-            train_gan(progress_callback)
+        if model == 'GAN':
+            train_gan(progress_callback, dataset_path=dataset_path, model_path=model_path)
         elif model == 'Voxel VAE':
-            train_vae(progress_callback)
-        elif model == 'Autoregressive Model':
-            train_autoregressive(progress_callback)
+            train_vae(progress_callback, dataset_path=dataset_path, model_path=model_path)
+        elif model == 'PixelCNN':
+            train_pixelcnn(progress_callback, dataset_path=dataset_path, model_path=model_path)
         update_progress(task_name, 100, status_message)
     except Exception as e:
         print(f"Error during training {model}: {e}")
@@ -344,16 +346,20 @@ def run_train(model):
 
 def run_infer(model):
     task_name = "infer"
+    output_path = "data/results/results.npy"
+    model_path = 'models/'
     status_message = f"Generating Designs using {model}"
+    num_samples = 1000
     def progress_callback(p):
         update_progress(task_name, p, status_message)
     try:
-        if model == '3D-GAN':
-            infer_gan(progress_callback)
+        if model == 'GAN':
+            infer_gan(progress_callback, model_path, output_path, num_samples)
         elif model == 'Voxel VAE':
-            infer_vae(progress_callback)
-        elif model == 'Autoregressive Model':
-            infer_autoregressive(progress_callback)
+            infer_vae(progress_callback, model_path, output_path, num_samples)
+        elif model == 'PixelCNN':
+            infer_pixelcnn(progress_callback, model_path, output_path, num_samples)
+        print(f'Updating progress for {task_name} to 100')
         update_progress(task_name, 100, status_message)
     except Exception as e:
         print(f"Error during inference {model}: {e}")
@@ -487,6 +493,82 @@ def update_infer_progress(n):
         label = ""
     return status, progress, label
 
+
+# Helper function for displaying voxel designs
+def convert_from_heightmap_to_voxel(samples_file, samples_file_voxels, max_height=3):
+    heightmaps = np.load(samples_file)
+    print(f'Loaded height map data from {samples_file}: shape={heightmaps.shape}')
+    for idx, heightmap in enumerate(heightmaps):
+        # Scale the height map to the maximum height and change to int values
+        heightmap = np.floor(heightmap*max_height)
+        # Create a binary voxel grid from the height map
+        voxel = np.zeros((heightmap.shape[0], heightmap.shape[1], max_height), dtype=int)
+        for i in range(max_height):
+            voxel[:,:,i] = heightmap > i
+        if idx == 0:
+            all_voxels = np.expand_dims(voxel, axis=0)
+        else:
+            all_voxels = np.concatenate((all_voxels, np.expand_dims(voxel, axis=0)), axis=0)
+
+    np.save(samples_file_voxels, all_voxels)
+    print(f'Saved voxel data to {samples_file_voxels}')
+
+    
+# Load the voxel samples
+def visualize_designs(file_path, n_display=100):
+    voxels = np.load(file_path)
+    print(f'Loaded voxel data from {file_path}: shape={voxels.shape}')
+    
+    # Remove empty voxel samples
+    non_empty_voxels = np.array([voxel for voxel in voxels if np.sum(voxel) > 0])
+    # Ensure there are at least 9 samples
+    n_samples = non_empty_voxels.shape[0]
+    print(f'n_samples: {n_samples}')
+    if n_samples < n_display:
+        n_display = n_samples
+    
+    # Select the first n_display samples
+    selected_voxels = non_empty_voxels[:n_display]
+    
+    # Create a list to hold the graph components
+    graphs = []
+    
+    for idx, voxel in enumerate(selected_voxels):
+        # Create a Mesh3d for the voxel grid with correct normals
+        mesh, max_coord = create_voxel_mesh(voxel, color='grey', voxel_size=1)
+        
+        if mesh is not None:
+            fig = go.Figure(data=[mesh])
+            fig.update_layout(
+                scene=dict(
+                    xaxis=dict(range=[0, max_coord], autorange=False),
+                    yaxis=dict(range=[0, max_coord], autorange=False),
+                    zaxis=dict(range=[0, 9], autorange=False),
+                    aspectmode='cube'  # Ensures equal scaling on all axes
+                ),
+                margin=dict(l=0, r=0, t=0, b=0),
+                showlegend=False
+            )
+        
+            # Create a card for each voxel
+            card = dbc.Card([
+                dbc.CardHeader(f"Voxel Design {idx + 1}"),
+                dbc.CardBody(
+                    dcc.Graph(
+                        figure=fig,
+                        config={'displayModeBar': False},
+                        style={'width': '200px', 'height': '200px'}
+                    )
+                )
+            ], className='m-2')
+        
+            graphs.append(dbc.Col(card, width='auto'))
+    
+    # Arrange the graphs in a 3x3 grid
+    grid = dbc.Row(graphs, justify='start')
+    
+    return grid, True  # Set visualization_done to True after rendering
+
 # Callback to display dataset items after generation (only once)
 @app.callback(
     [
@@ -494,7 +576,7 @@ def update_infer_progress(n):
         Output('dataset-visualization-done', 'data', allow_duplicate=True),
     ],
     [
-        Input('dataset-progress-bar', 'value')
+        Input('dataset-progress-bar', 'value'),
     ],
     [
         State('dataset-visualization-done', 'data')
@@ -502,6 +584,7 @@ def update_infer_progress(n):
     prevent_initial_call=True
 )
 def display_dataset_items(progress, visualization_done):
+    # print(f'display_dataset_items: progress={progress}, visualization_done={visualization_done}')
     if progress == 100 and not visualization_done:
         print(f'Progress equals 100, displaying dataset items')
         samples_file = 'data/processed/all_samples.npy'  # Path to the samples file
@@ -511,129 +594,52 @@ def display_dataset_items(progress, visualization_done):
             return html.Div(f"Processed data file {samples_file} does not exist.", style={'color': 'red'}), visualization_done
         
         try:
-            # Load the voxel samples
-            voxels = np.load(samples_file)
-            print(f'Loaded voxel data from {samples_file}: shape={voxels.shape}')
-            
-            # Ensure there are at least 9 samples
-            n_samples = voxels.shape[0]
-            n_display = 9
-            if n_samples < n_display:
-                n_display = n_samples
-                print(f"Only {n_samples} samples available. Displaying all available samples.")
-            
-            # Select the first 9 samples
-            selected_voxels = voxels[:n_display]
-            
-            # Create a list to hold the graph components
-            graphs = []
-            
-            for idx, voxel in enumerate(selected_voxels):
-                # Create a Mesh3d for the voxel grid with correct normals
-                mesh, max_coord = create_voxel_mesh(voxel, color='blue', voxel_size=1)
-
-                fig = go.Figure(data=[mesh])
-                fig.update_layout(
-                    scene=dict(
-                        xaxis=dict(range=[0, max_coord], autorange=False),
-                        yaxis=dict(range=[0, max_coord], autorange=False),
-                        zaxis=dict(range=[0, max_coord], autorange=False),
-                        aspectmode='cube'  # Ensures equal scaling on all axes
-                    ),
-                    margin=dict(l=0, r=0, t=0, b=0),
-                    showlegend=False
-                )
-                
-                # Create a card for each voxel
-                card = dbc.Card([
-                    dbc.CardHeader(f"Voxel Design {idx + 1}"),
-                    dbc.CardBody(
-                        dcc.Graph(
-                            figure=fig,
-                            config={'displayModeBar': False},
-                            style={'width': '400px', 'height': '400px'}
-                        )
-                    )
-                ], className='m-2')
-                
-                graphs.append(dbc.Col(card, width='auto'))
-            
-            # Arrange the graphs in a 3x3 grid
-            grid = dbc.Row(graphs, justify='start')
-            
-            return grid, True  # Set visualization_done to True after rendering
-        
+            grid, visualization_done = visualize_designs(samples_file, n_display=25)
+            return grid, visualization_done
         except Exception as e:
             print(f"Error loading or visualizing voxel data: {e}")
             return html.Div(f"Error loading voxel data: {e}", style={'color': 'red'}), visualization_done
+            
     else:
         return dash.no_update, dash.no_update
 
-# Callback to display designs grid after inference completes
+
+# Callback to display dataset items after inference (only once)
 @app.callback(
-    Output('designs-grid', 'children'),
-    Input('infer-progress-bar', 'value'),
-    State('infer-model-select', 'value'),
-    prevent_initial_call=True,
-    allow_duplicate=True
+    [
+        Output('dataset-visualization', 'children', allow_duplicate=True),
+        Output('infer-visualization-done', 'data', allow_duplicate=True),
+    ],
+    [
+        Input('infer-progress-bar', 'value')
+    ],
+    [
+        State('infer-visualization-done', 'data')
+    ],
+    prevent_initial_call=True
 )
-def display_designs(progress, model):
-    if progress == 100:
-        designs = []
-        output_dir = 'outputs'
+def display_inferred_items(progress, visualization_done):
+    # print(f'display_inferred_items: progress={progress}, visualization_done={visualization_done}')
+    if progress == 100 and not visualization_done:
+        print(f'Progress equals 100, displaying dataset items')
+        samples_file = 'data/results/results.npy'  # Path to the samples file
+        samples_file_voxels = 'data/results/results_voxels.npy'  # Path to the voxelized samples file
+
+        # Check if the file exists
+        if not os.path.exists(samples_file):
+            return html.Div(f"Processed data file {samples_file} does not exist.", style={'color': 'red'}), visualization_done
         
-        # Check if the directory exists
-        if not os.path.exists(output_dir):
-            return html.Div("Outputs directory does not exist.", style={'color': 'red'})
-        
-        # Define number of designs to display
-        n_designs = 9
-        count = 0
-        
-        # Iterate through the generated voxel files
-        for i in range(1, 1001):  # Assuming up to 1000 designs
-            if count >= n_designs:
-                break
-            filename = os.path.join(output_dir, f'generated_voxel_{model.lower()}_{i}.npy')
-            if os.path.exists(filename):
-                voxel = np.load(filename)
-                
-                # Create a Mesh3d for the voxel grid with correct normals
-                mesh = create_voxel_mesh(voxel, color='red')
-                
-                # Create a card for each voxel
-                card = dbc.Card([
-                    dbc.CardHeader(f"Generated Voxel {i}"),
-                    dbc.CardBody(
-                        dcc.Graph(
-                            figure=go.Figure(data=[mesh]),
-                            config={'displayModeBar': False},
-                            style={'width': '200px', 'height': '200px'}
-                        )
-                    )
-                ], className='m-2')
-                
-                designs.append(dbc.Col(card, width='auto'))
-                count += 1
-            else:
-                # If voxel data not found
-                designs.append(
-                    html.Div(
-                        "Voxel data not found.",
-                        style={
-                            'width': '200px',
-                            'height': '200px',
-                            'display': 'inline-block',
-                            'color': 'red'
-                        },
-                        className='m-2'
-                    )
-                )
-                count += 1
-        grid = dbc.Row(designs, justify='start', no_gutters=True)
-        return grid
+        try:
+            convert_from_heightmap_to_voxel(samples_file, samples_file_voxels)
+            grid, visualization_done = visualize_designs(samples_file_voxels, n_display=25)
+            return grid, visualization_done
+        except Exception as e:
+            print(f"Error loading or visualizing voxel data: {e}")
+            return html.Div(f"Error loading voxel data: {e}", style={'color': 'red'}), visualization_done
+            
     else:
-        return dash.no_update
+        return dash.no_update, dash.no_update
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)

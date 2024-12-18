@@ -1,10 +1,10 @@
 import torch
 import numpy as np
-from models.autoregressive import VoxelRNN
+from models.pixelcnn import PixelCNN
 
 def infer(model_path, output_path, voxel_size=32):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = VoxelRNN(voxel_size=voxel_size).to(device)
+    model = PixelCNN(voxel_size=voxel_size).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     with torch.no_grad():
@@ -15,4 +15,4 @@ def infer(model_path, output_path, voxel_size=32):
     print(f"Generated voxel saved to {output_path}")
 
 if __name__ == '__main__':
-    infer('models/autoregressive_epoch_20.pth', 'outputs/generated_voxel_autoregressive.npy')
+    infer('models/pixelcnn_epoch_20.pth', 'outputs/generated_voxel_pixelcnn.npy')
